@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Base64;
 import java.util.Collections;
 
 @Configuration
@@ -19,13 +20,15 @@ public class GoogleSheetsConfig {
     public Sheets sheetsService() throws Exception {
 
         // 🔥 Read from ENV variable instead of file
-        String json = System.getenv("GOOGLE_CREDENTIALS");
+        String base64Json = System.getenv("GOOGLE_CREDENTIALS");
 
-        if (json == null || json.isEmpty()) {
+        if (base64Json == null || base64Json.isEmpty()) {
             throw new RuntimeException("GOOGLE_CREDENTIALS env variable not set");
         }
 
-        InputStream in = new ByteArrayInputStream(json.getBytes());
+        byte[] decodedJson = Base64.getDecoder().decode(base64Json);
+
+        InputStream in = new ByteArrayInputStream(decodedJson);
 
         GoogleCredentials credentials = GoogleCredentials
                 .fromStream(in)
