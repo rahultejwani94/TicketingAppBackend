@@ -23,7 +23,7 @@ public class QRService {
 
         // 1. Load the Logo (This is your base template)
         BufferedImage baseTicket = ImageIO.read(
-                Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("ticket_logo_cropped.jpeg"))
+                Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("static/ticket_logo_cropped.jpeg"))
         );
 
         int width = baseTicket.getWidth();

@@ -1,8 +1,11 @@
 package com.example.demo.service;
 
+import com.example.demo.controller.TicketController;
 import com.example.demo.model.BookingRequest;
 import com.example.demo.model.NewTicket;
 import com.example.demo.utilities.UUIDUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -23,12 +26,18 @@ public class BookingService {
     private QRService qrService;
 
     @Autowired
-    private EmailService emailService;
+    private PdfService pdfService;
+
+    private final Map<String, byte[]> pdfStore = new HashMap<>();
+
+    private static final Logger log = LoggerFactory.getLogger(BookingService.class);
 
     @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
     public Map<String, Object> createBooking(BookingRequest req) throws Exception {
+        log.info("Creating booking for request: {}", req.getName());
 
         String bookingId = UUIDUtil.generate();
+
 
         List<NewTicket> tickets = new ArrayList<>();
 
@@ -79,14 +88,14 @@ public class BookingService {
             googleSheetService.appendRow(row);
         }
 
-        emailService.sendTicketEmail(
-                req.getEmail(),
-                req.getName(),
+        byte[] pdfBytes = pdfService.generateTicketPdf(
                 bookingId,
-                req.getTicketCount(),
-                req.getTotalAmount(),
+                req.getName(),
                 qrImages
         );
+
+        // store it
+        pdfStore.put(bookingId, pdfBytes);
 
         Map<String, Object> response = new HashMap<>();
         response.put("bookingId", bookingId);
@@ -94,6 +103,10 @@ public class BookingService {
         response.put("status", "Pending");
 
         return response;
+    }
+
+    public byte[] getPdf(String bookingId) {
+        return pdfStore.get(bookingId);
     }
 }
 
