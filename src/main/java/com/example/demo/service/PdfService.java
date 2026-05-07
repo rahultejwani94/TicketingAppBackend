@@ -29,9 +29,12 @@ public class PdfService {
         PdfWriter.getInstance(document, out);
         document.open();
 
-        Font value = FontFactory.getFont(FontFactory.HELVETICA, 12);
-        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
-        Font idFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
+        Font value = FontFactory.getFont(FontFactory.HELVETICA, 14);
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20);
+        titleFont.setColor(BaseColor.WHITE);
+        Font idFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
+        Font ticketTitleFont = FontFactory.getFont(
+                FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
 
         InputStream logoStream = getClass()
                 .getClassLoader()
@@ -43,8 +46,7 @@ public class PdfService {
         byte[] logoBytes = logoStream.readAllBytes();
 
         Image logo = Image.getInstance(logoBytes);
-        logo.scaleToFit(80, 80);   // reduce size
-
+        logo.scaleToFit(140, 140);
         PdfPTable header = getPdfPTable(logo, titleFont);
 
         document.add(header);
@@ -81,15 +83,16 @@ public class PdfService {
             cell.setBorder(Rectangle.BOX);
             cell.setBackgroundColor(new BaseColor(245, 245, 245));
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            cell.setPadding(15);
+            cell.setPadding(25);
             cell.setBorderWidth(1.5f);
             cell.setBorderColor(new BaseColor(200, 200, 200));
 
             // Ticket Title
             Paragraph ticketTitle = new Paragraph(
                     "🎟 Ticket " + count,
-                    titleFont
+                    ticketTitleFont
             );
+            ticketTitle.setSpacingAfter(10);
 
             // Optional: Ticket ID (you can replace with real uuid if you have)
             Paragraph ticketId = new Paragraph(
@@ -99,14 +102,14 @@ public class PdfService {
 
             // QR Image
             Image img = Image.getInstance(qr);
-            img.scaleToFit(150, 150);
+            img.scaleToFit(250, 250);
             img.setAlignment(Element.ALIGN_CENTER);
 
             Paragraph spacer = new Paragraph(" ");
 
             PdfPTable innerTable = new PdfPTable(2);
             innerTable.setWidthPercentage(100);
-            innerTable.setWidths(new float[]{3, 1});
+            innerTable.setWidths(new float[]{2, 2});
 
 // LEFT SIDE (TEXT)
             PdfPCell left = new PdfPCell();
@@ -120,6 +123,17 @@ public class PdfService {
             right.setBorder(Rectangle.NO_BORDER);
             right.setHorizontalAlignment(Element.ALIGN_RIGHT);
             right.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            Paragraph scanText = new Paragraph(
+                    "Scan at Entry",
+                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12)
+            );
+
+            scanText.setAlignment(Element.ALIGN_CENTER);
+            scanText.setSpacingAfter(12); // 👈 THIS LINE
+
+            right.addElement(scanText);
+            right.addElement(img);
 
 // ADD BOTH
             innerTable.addCell(left);
@@ -165,12 +179,16 @@ public class PdfService {
         PdfPTable header = new PdfPTable(2);
         header.setWidthPercentage(100);
         header.setSpacingAfter(10);
-        header.setWidths(new float[]{1, 3}); // more space to title
-
+        header.setWidths(new float[]{1, 1});
+        header.setSpacingAfter(10);
 // Left: Logo
         PdfPCell logoCell = new PdfPCell(logo);
         logoCell.setBorder(Rectangle.NO_BORDER);
         logoCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        // NEW
+        logoCell.setBackgroundColor(new BaseColor(30, 30, 30));  // dark blackish);
+        logoCell.setPadding(10);
 
 // Right: Title
         Paragraph title = new Paragraph("EVENT TICKET", titleFont);
@@ -178,8 +196,10 @@ public class PdfService {
         PdfPCell titleCell = new PdfPCell(title);
         titleCell.setBorder(Rectangle.NO_BORDER);
         titleCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        titleCell.setPaddingTop(20); // vertically center feel
         titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        titleCell.setBackgroundColor(new BaseColor(30, 30, 30));  // dark blackish);   // dark blue);
+        titleCell.setPadding(10);
 
 // Add cells
         header.addCell(logoCell);
