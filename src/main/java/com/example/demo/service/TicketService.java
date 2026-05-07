@@ -21,12 +21,6 @@ import static com.example.demo.utilities.TicketResponseStatusUtility.*;
 @Service
 public class TicketService {
 
-    @Autowired
-    private Sheets sheetsService;
-
-    private static final String SPREADSHEET_ID = "1gCedYeGOljKDsijAeu-kuLgnXg8YFJRANbMn0s2dAmk";
-    private static final String RANGE = "Sheet1!A2:L";
-
     private static final Logger log = LoggerFactory.getLogger(TicketService.class);
 
     @Autowired
@@ -65,7 +59,7 @@ public class TicketService {
             if (!"Valid".equalsIgnoreCase(status)) {
                 return invalid();
             }
-            return ticketCacheService.markCheckedIn(ticket.getRowIndex(), name);
+            return ticketCacheService.markCheckedIn(ticket.getUuid(), name);
         } catch (Exception e) {
             e.printStackTrace();
             return invalid();

@@ -21,11 +21,8 @@ import static com.example.demo.utilities.TicketResponseStatusUtility.valid;
 @Service
 public class TicketCacheService {
 
-    private static final String SPREADSHEET_ID = "1gCedYeGOljKDsijAeu-kuLgnXg8YFJRANbMn0s2dAmk";
-    private static final String RANGE = "Sheet1!A2:L";
-
     @Autowired
-    private Sheets sheetsService;
+    private GoogleSheetService googleSheetService;
 
     private static final Logger log = LoggerFactory.getLogger(TicketCacheService.class);
 
@@ -34,15 +31,11 @@ public class TicketCacheService {
         log.info("all tickets Cache working test");
         List<TicketDTO> result = new ArrayList<>();
 
-        ValueRange response = sheetsService.spreadsheets().values()
-                .get(SPREADSHEET_ID, RANGE)
-                .execute();
-
-        List<List<Object>> rows = response.getValues();
+        List<List<Object>> rows = googleSheetService.getRows();
 
         if (rows == null) return result;
 
-        for (int i = 0; i < rows.size(); i++) {
+        for (int i = 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
 
             if (row.size() < 12) continue;
@@ -52,7 +45,7 @@ public class TicketCacheService {
                     row.get(5).toString(), // uuid
                     row.get(1).toString(), // name
                     row.get(4).toString(), // utr
-                    i + 2,  // rowIndex
+                    0,  // rowIndex
                     row.get(6).toString(),   // status
                     row.get(8).toString(), // ticketNumber
                     row.get(9).toString(),   // ticketCount
@@ -67,23 +60,12 @@ public class TicketCacheService {
     }
 
     @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
-    public TicketResponse markCheckedIn(int rowIndex, String name) {
+    public TicketResponse markCheckedIn(String uuid, String name) {
 
         try {
-            String updateRange = "Sheet1!G" + rowIndex;
-
-            ValueRange body = new ValueRange()
-                    .setValues(List.of(List.of("Checked In")));
-
-            sheetsService.spreadsheets().values()
-                    .update(SPREADSHEET_ID, updateRange, body)
-                    .setValueInputOption("RAW")
-                    .execute();
-
+            googleSheetService.updateStatusByUuid("Checked In", uuid);
             log.info("Ticket checked-in, cache cleared");
-
             return valid(name);
-
         } catch (Exception e) {
             e.printStackTrace();
             return invalid();
@@ -91,32 +73,14 @@ public class TicketCacheService {
     }
 
     @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
-    public void approveTicket(String rowIndex) throws IOException {
+    public void approveTicket(String uuid) throws IOException {
+        googleSheetService.updateStatusByUuid("Valid", uuid);
         log.info("ticket approved");
-        String updateRange = "Sheet1!G" + rowIndex;
-
-        ValueRange body = new ValueRange()
-                .setValues(List.of(List.of("Valid")));
-
-        sheetsService.spreadsheets().values()
-                .update(SPREADSHEET_ID, updateRange, body)
-                .setValueInputOption("RAW")
-                .execute();
     }
 
     @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
-    public void rejectTicket(String rowIndex) throws IOException {
-
-        String updateRange = "Sheet1!G" + rowIndex; // status column
-
-        ValueRange body = new ValueRange()
-                .setValues(List.of(List.of("Rejected")));
-
-        sheetsService.spreadsheets().values()
-                .update(SPREADSHEET_ID, updateRange, body)
-                .setValueInputOption("RAW")
-                .execute();
-
+    public void rejectTicket(String uuid) throws IOException {
+        googleSheetService.updateStatusByUuid("Rejected", uuid);
         log.info("Ticket Rejected, cache cleared");
     }
 

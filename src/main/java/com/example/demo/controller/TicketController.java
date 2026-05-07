@@ -50,15 +50,15 @@ public class TicketController {
 
     @PostMapping("/approve-ticket")
     public String approveTicket(@RequestBody Map<String, String> request) throws IOException {
-        log.info("Approving ticket at row: {}", request.get("rowIndex"));
-        ticketService.approveTicket(request.get("rowIndex"));
-        log.info("Ticket approved for row: {}", request.get("rowIndex"));
+        log.info("Approving ticket at row: {}", request.get("uuid"));
+        ticketService.approveTicket(request.get("uuid"));
+        log.info("Ticket approved for row: {}", request.get("uuid"));
         return "SUCCESS";
     }
 
     @PostMapping("/reject-ticket")
     public String rejectTicket(@RequestBody Map<String, String> request) throws IOException {
-        ticketCacheService.rejectTicket(request.get("rowIndex"));
+        ticketCacheService.rejectTicket(request.get("uuid"));
         return "REJECTED";
     }
 
