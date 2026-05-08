@@ -38,7 +38,7 @@ public class TicketCacheService {
         for (int i = 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
 
-            if (row.size() < 12) continue;
+            if (row.size() < 13) continue;
 
             TicketDTO ticket = new TicketDTO(
                     row.get(7).toString(), // bookingId

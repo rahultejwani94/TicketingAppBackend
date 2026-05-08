@@ -7,8 +7,12 @@ import com.example.demo.utilities.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 
@@ -40,21 +44,37 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.createBooking(request));
     }
 
-    @GetMapping("/{bookingId}/pdf")
-    public ResponseEntity<byte[]> downloadPdf(@PathVariable String bookingId) {
+    @GetMapping("/download/{bookingId}")
+    public ResponseEntity<byte[]> downloadTicket(
+            @PathVariable String bookingId
+    ) {
 
-        log.info("Getting pdf for booking id: {}", bookingId);
+        try {
 
-        byte[] pdf = bookingService.getPdf(bookingId);
+            byte[] pdfBytes = bookingService.downloadPdfByBookingId(bookingId);
 
-        if (pdf == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.ok()
+                    .header(
+                            HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=The_Notebook_Concert_Ticket_" + bookingId + ".pdf"
+                    )
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
+
+        } catch (Exception ex) {
+
+            if ("PDF not found".equals(ex.getMessage())) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "PDF not found"
+                );
+            }
+
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Something went wrong"
+            );
         }
-
-        return ResponseEntity.ok()
-                .header("Content-Type", "application/pdf")
-                .header("Content-Disposition",
-                        "attachment; filename=ticket_" + bookingId + ".pdf")
-                .body(pdf);
     }
+
 }

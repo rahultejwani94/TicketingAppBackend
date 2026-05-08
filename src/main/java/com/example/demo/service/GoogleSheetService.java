@@ -13,7 +13,7 @@ import java.util.List;
 public class GoogleSheetService {
 
     private static final String SPREADSHEET_ID = "1gCedYeGOljKDsijAeu-kuLgnXg8YFJRANbMn0s2dAmk";
-    private static final String RANGE = "Sheet1!A:L";
+    private static final String RANGE = "Sheet1!A:M";
     private static final String STATUS_COLUMN = "G";
 
     @Autowired
@@ -48,7 +48,7 @@ public class GoogleSheetService {
             System.out.println("Checking row " + i + " uuid=" + rowUuid);
             if (rowUuid.equals(uuid)) {
 
-                String range = "Sheet1!G" + (i + 1); // still need sheet row internally
+                String range = "Sheet1!" + STATUS_COLUMN + (i + 1); // still need sheet row internally
                 System.out.println("MATCH FOUND at row: " + (i + 1));
                 ValueRange body = new ValueRange()
                         .setValues(List.of(List.of(status)));
@@ -61,6 +61,50 @@ public class GoogleSheetService {
                 return;
             }
         }
+    }
+
+    public void batchUpdateRows(List<List<Object>> rows) throws Exception {
+
+        ValueRange body = new ValueRange()
+                .setValues(rows);
+
+        sheetsService.spreadsheets().values()
+                .append(
+                        SPREADSHEET_ID,
+                        RANGE,
+                        body
+                )
+                .setValueInputOption("USER_ENTERED")
+                .setInsertDataOption("INSERT_ROWS")
+                .execute();
+    }
+
+    public String getPdfUrlByBookingId(String bookingId) throws Exception {
+
+        ValueRange response = sheetsService.spreadsheets().values()
+                .get(
+                        SPREADSHEET_ID,
+                        "Sheet1!A2:M"
+                )
+                .execute();
+
+        List<List<Object>> values = response.getValues();
+
+        if (values == null) return null;
+
+        for (List<Object> row : values) {
+
+            // bookingId column index
+            String rowBookingId = row.get(7).toString();
+
+            if (bookingId.equals(rowBookingId)) {
+
+                // pdf url column index
+                return row.get(12).toString();
+            }
+        }
+
+        return null;
     }
 }
 
