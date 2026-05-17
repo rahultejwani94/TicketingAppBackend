@@ -15,7 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,10 +75,10 @@ public class BookingService {
 
             List<List<Object>> rows = new ArrayList<>();
 
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm:ss");
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-            LocalDateTime now = LocalDateTime.now();
-            LocalDateTime expiresAt = now.plusMinutes(reservationExpiryMinutes);
+            ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+            ZonedDateTime expiresAt = now.plusMinutes(reservationExpiryMinutes);
 
             String nowStr = now.format(formatter);
             String expiresAtStr = expiresAt.format(formatter);
@@ -109,7 +110,7 @@ public class BookingService {
 
             response.put("success", true);
             response.put("reservationId", reservationId);
-            response.put("expiresAt", expiresAt.toString());
+            response.put("expiresAt", expiresAt.toInstant().toString());
             return response;
         }
     }

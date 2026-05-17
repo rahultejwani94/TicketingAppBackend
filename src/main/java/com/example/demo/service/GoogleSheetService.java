@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.time.format.DateTimeFormatter;
 
@@ -21,8 +22,7 @@ public class GoogleSheetService {
     @Autowired
     private Sheets sheetsService;
 
-    DateTimeFormatter formatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm:ss");
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public void appendRow(List<Object> row) throws IOException {
         ValueRange body = new ValueRange().setValues(List.of(row));
@@ -125,7 +125,7 @@ public class GoogleSheetService {
                         RANGE,
                         body
                 )
-                .setValueInputOption("USER_ENTERED")
+                .setValueInputOption("RAW")
                 .setInsertDataOption("INSERT_ROWS")
                 .execute();
     }
@@ -182,7 +182,7 @@ public class GoogleSheetService {
                 LocalDateTime expiresAt =
                         LocalDateTime.parse(row.get(13).toString(), formatter);
 
-                if (expiresAt.isAfter(LocalDateTime.now())) {
+                if (expiresAt.isAfter(LocalDateTime.now(ZoneOffset.UTC))) {
                     count++;
                 }
 
@@ -363,7 +363,7 @@ public class GoogleSheetService {
                 LocalDateTime expiresAt =
                         LocalDateTime.parse(row.get(13).toString(), formatter);
 
-                return expiresAt.isBefore(LocalDateTime.now());
+                return expiresAt.isBefore(LocalDateTime.now(ZoneOffset.UTC));
             }
         }
 
