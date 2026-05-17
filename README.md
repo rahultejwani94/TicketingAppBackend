@@ -32,6 +32,7 @@ A Spring Boot REST API backend for managing event ticket bookings, scanning, and
 ✅ **Integration**
 - Google Sheets API integration for data storage and retrieval
 - Cloudinary integration for image hosting
+- Email notifications via Resend API with PDF attachments
 
 ✅ **Performance**
 - Caffeine-based caching for optimized performance
@@ -55,6 +56,7 @@ A Spring Boot REST API backend for managing event ticket bookings, scanning, and
 ### Data & APIs
 - **Google Sheets API** - Data storage and synchronization
 - **Cloudinary** - Image hosting and management
+- **Resend API** - Transactional email service with attachments
 
 ### Libraries & Utilities
 - **Lombok** - Reduce boilerplate code
@@ -77,6 +79,7 @@ A Spring Boot REST API backend for managing event ticket bookings, scanning, and
 - **Maven 3.6+**
 - **Google Sheets API credentials** (JSON key file)
 - **Cloudinary account** (for image hosting)
+- **Resend API key** (for email notifications, get from https://resend.com)
 - **Git** (optional, for version control)
 
 ## Installation & Setup
@@ -107,6 +110,9 @@ export CLOUDINARY_CLOUD_NAME=your_cloud_name
 export CLOUDINARY_API_KEY=your_api_key
 export CLOUDINARY_API_SECRET=your_api_secret
 
+# Email Configuration (Resend API)
+export RESEND_API_KEY=your_resend_api_key
+
 # Booking Configuration
 export RESERVATION_EXPIRY_MINUTES=10
 export TICKET_MAX_LIMIT=80
@@ -117,6 +123,7 @@ export TICKET_MAX_LIMIT=80
 - `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name for image uploads
 - `CLOUDINARY_API_KEY` - Cloudinary API key
 - `CLOUDINARY_API_SECRET` - Cloudinary API secret
+- `RESEND_API_KEY` - Resend API key for sending transactional emails (get from https://resend.com)
 - `RESERVATION_EXPIRY_MINUTES` - Duration (in minutes) before a reservation expires (default: 10)
 - `TICKET_MAX_LIMIT` - Maximum number of tickets allowed per booking (default: 80)
 
@@ -132,6 +139,9 @@ server.port=8080
 
 # Admin Authentication (BCrypt hashed password)
 admin.password=$2a$12$CcQSWQEu9WnKpoQzJCHXpuk6uxRMCHt3ey4FqidGGtk1NjVgc2hs2
+
+# Email Configuration (Resend API)
+resend.api.key=${RESEND_API_KEY}
 
 # Booking & Reservation Configuration
 reservation.expiry.minutes=${RESERVATION_EXPIRY_MINUTES:10}
@@ -430,6 +440,9 @@ docker run -d \
   -e CLOUDINARY_CLOUD_NAME=your_cloud_name \
   -e CLOUDINARY_API_KEY=your_api_key \
   -e CLOUDINARY_API_SECRET=your_api_secret \
+  -e RESEND_API_KEY=your_resend_api_key \
+  -e RESERVATION_EXPIRY_MINUTES=10 \
+  -e TICKET_MAX_LIMIT=80 \
   --name ticket-backend \
   ticket-scan-backend
 ```
@@ -477,6 +490,11 @@ src/main/java/com/example/demo/
 │   ├── AdminController.java      # Admin authentication
 │   ├── BookingController.java    # Booking operations
 │   └── TicketController.java     # Ticket management
+├── exceptions/                    # Custom exception classes
+│   ├── BookingConflictException.java      # Booking conflicts
+│   ├── EmailSendException.java            # Email sending errors
+│   ├── GlobalExceptionHandler.java        # Global exception handling
+│   └── ReservationExpiredException.java   # Expired reservations
 ├── model/                         # Data models (DTOs)
 │   ├── BookingRequest.java
 │   ├── TicketRequest.java
@@ -495,7 +513,8 @@ src/main/java/com/example/demo/
 │   └── GoogleSheetService.java   # Google Sheets integration
 └── utilities/                     # Helper utilities
     ├── JwtUtil.java              # JWT token operations
-    └── ...
+    ├── TicketResponseStatusUtility.java  # Ticket status utilities
+    └── UUIDUtil.java             # UUID generation utilities
 ```
 
 ### Data Flow
@@ -530,8 +549,8 @@ Client Request
 - `spring-boot-starter-web` - REST API support
 - `spring-boot-starter-cache` - Caching support
 - `spring-boot-starter-actuator` - Health monitoring
+- `spring-boot-starter-webflux` - WebClient for Resend API calls
 - `spring-boot-devtools` - Development tools
-- ⚠️ `spring-boot-starter-mail` - Email support (currently disabled in pom.xml)
 
 ### Google Integration
 - `google-api-services-sheets:v4-rev20230815-2.0.0` - Google Sheets API
@@ -550,6 +569,7 @@ Client Request
 - `com.google.zxing:core:3.5.4` - QR code generation
 - `com.itextpdf:itextpdf:5.5.13.3` - PDF generation
 - `com.cloudinary:cloudinary-http44:1.39.0` - Cloudinary integration
+- **Resend API** - Transactional email service (via WebClient)
 
 For the complete list, see `pom.xml`.
 
@@ -604,11 +624,12 @@ This project is compatible with:
 - Ensure public_id is unique
 
 **Issue: Email Sending Fails**
-- ⚠️ Email notifications are currently disabled in `pom.xml` (spring-boot-starter-mail is commented out)
-- To enable: Uncomment the mail dependency in `pom.xml`
-- Then verify Gmail app password is correct (not regular password)
-- Enable "Less secure apps" or use OAuth2
-- Check Gmail SMTP settings in `application.properties`
+- Ensure `RESEND_API_KEY` environment variable is set correctly
+- Verify your Resend API key from https://resend.com dashboard
+- Check that the sender email domain is verified in Resend dashboard
+- Ensure the `resend.api.key` property is configured in `application.properties`
+- Check application logs for detailed error messages from Resend API
+- Resend email sending endpoint: `https://api.resend.com/emails`
 
 **Issue: JWT Token Validation Fails**
 - Ensure token is prefixed with "Bearer " in Authorization header
@@ -633,7 +654,7 @@ For issues, questions, or feature requests, please open an issue in the reposito
 
 ---
 
-**Last Updated:** May 17, 2026  
+**Last Updated:** May 18, 2026  
 **Maintained by:** Development Team  
 **Java Version:** 21  
 **Spring Boot Version:** 4.0.6
