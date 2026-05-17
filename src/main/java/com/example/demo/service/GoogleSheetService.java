@@ -96,7 +96,6 @@ public class GoogleSheetService {
             if (row.size() < 6) continue;
 
             String rowUuid = row.get(5).toString();
-            System.out.println("Checking row " + i + " uuid=" + rowUuid);
             if (rowUuid.equals(uuid)) {
 
                 String range = "Sheet1!" + STATUS_COLUMN + (i + 1); // still need sheet row internally
