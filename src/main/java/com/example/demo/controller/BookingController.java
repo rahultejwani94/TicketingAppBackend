@@ -2,7 +2,6 @@ package com.example.demo.controller;
 
 import com.example.demo.model.BookingRequest;
 import com.example.demo.service.BookingService;
-import com.example.demo.service.PdfService;
 import com.example.demo.utilities.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -25,8 +23,14 @@ public class BookingController {
 
     private static final Logger log = LoggerFactory.getLogger(BookingController.class);
 
-    @PostMapping
-    public ResponseEntity<?> create(@RequestHeader(value = "Authorization", required = false) String authHeader, @RequestBody BookingRequest request) throws Exception {
+    @PostMapping("/confirm/{reservationId}")
+    public ResponseEntity<?> confirm(
+            @PathVariable String reservationId,
+            @RequestHeader(value = "Authorization", required = false)
+            String authHeader,
+            @RequestBody BookingRequest request
+    ) throws Exception {
+
         if ("FREE".equals(request.getPaymentType())) {
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -41,7 +45,13 @@ public class BookingController {
                 return ResponseEntity.status(401).body("Invalid token");
             }
         }
-        return ResponseEntity.ok(bookingService.createBooking(request));
+
+        return ResponseEntity.ok(
+                bookingService.confirmReservation(
+                        reservationId,
+                        request
+                )
+        );
     }
 
     @GetMapping("/download/{bookingId}")
@@ -58,6 +68,10 @@ public class BookingController {
                             HttpHeaders.CONTENT_DISPOSITION,
                             "attachment; filename=The_Notebook_Concert_Ticket_" + bookingId + ".pdf"
                     )
+                    .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                    .header(HttpHeaders.PRAGMA, "no-cache")
+                    .header(HttpHeaders.EXPIRES, "0")
+                    .contentLength(pdfBytes.length)
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdfBytes);
 
@@ -77,4 +91,24 @@ public class BookingController {
         }
     }
 
+    @PostMapping("/reserve")
+    public ResponseEntity<?> reserve(
+            @RequestBody BookingRequest request
+    ) throws Exception {
+
+        return ResponseEntity.ok(
+                bookingService.reserveBooking(request)
+        );
+    }
+
+    @PutMapping("/reserve/{reservationId}")
+    public ResponseEntity<?> updateReservation(
+            @PathVariable String reservationId,
+            @RequestBody BookingRequest request
+    ) throws Exception {
+
+        return ResponseEntity.ok(
+                bookingService.updateReservation(reservationId, request)
+        );
+    }
 }

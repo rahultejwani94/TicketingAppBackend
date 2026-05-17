@@ -40,10 +40,18 @@ public class TicketCacheService {
 
             if (row.size() < 13) continue;
 
+            String status = row.get(6).toString();
+
+            if (status.equalsIgnoreCase("Reserved")) {
+                continue;
+            }
+
             TicketDTO ticket = new TicketDTO(
                     row.get(7).toString(), // bookingId
                     row.get(5).toString(), // uuid
                     row.get(1).toString(), // name
+                    row.get(2).toString(), // email
+                    row.get(3).toString(), // phone
                     row.get(4).toString(), // utr
                     0,  // rowIndex
                     row.get(6).toString(),   // status
@@ -82,6 +90,28 @@ public class TicketCacheService {
     public void rejectTicket(String uuid) throws IOException {
         googleSheetService.updateStatusByUuid("Rejected", uuid);
         log.info("Ticket Rejected, cache cleared");
+    }
+
+    @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
+    public void approveBooking(String bookingId) throws Exception {
+
+        googleSheetService.updateStatusByBookingId(
+                "Valid",
+                bookingId
+        );
+
+        log.info("Booking approved: {}", bookingId);
+    }
+
+    @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
+    public void rejectBooking(String bookingId) throws Exception {
+
+        googleSheetService.updateStatusByBookingId(
+                "Rejected",
+                bookingId
+        );
+
+        log.info("Booking rejected: {}", bookingId);
     }
 
 }

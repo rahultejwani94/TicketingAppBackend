@@ -32,7 +32,6 @@ A Spring Boot REST API backend for managing event ticket bookings, scanning, and
 ✅ **Integration**
 - Google Sheets API integration for data storage and retrieval
 - Cloudinary integration for image hosting
-- Email notifications via Gmail SMTP
 
 ✅ **Performance**
 - Caffeine-based caching for optimized performance
@@ -78,7 +77,6 @@ A Spring Boot REST API backend for managing event ticket bookings, scanning, and
 - **Maven 3.6+**
 - **Google Sheets API credentials** (JSON key file)
 - **Cloudinary account** (for image hosting)
-- **Gmail account** with app password (for email notifications)
 - **Git** (optional, for version control)
 
 ## Installation & Setup
@@ -101,12 +99,26 @@ mvn clean install
 Create a `.env` file or configure your system environment variables:
 
 ```bash
-# Cloudinary Configuration
+# Google Sheets Configuration
 export GOOGLE_CREDENTIALS=base64_encoded_credentials
+
+# Cloudinary Configuration
 export CLOUDINARY_CLOUD_NAME=your_cloud_name
 export CLOUDINARY_API_KEY=your_api_key
 export CLOUDINARY_API_SECRET=your_api_secret
+
+# Booking Configuration
+export RESERVATION_EXPIRY_MINUTES=10
+export TICKET_MAX_LIMIT=80
 ```
+
+**Environment Variables Reference:**
+- `GOOGLE_CREDENTIALS` - Base64 encoded Google Sheets API credentials
+- `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name for image uploads
+- `CLOUDINARY_API_KEY` - Cloudinary API key
+- `CLOUDINARY_API_SECRET` - Cloudinary API secret
+- `RESERVATION_EXPIRY_MINUTES` - Duration (in minutes) before a reservation expires (default: 10)
+- `TICKET_MAX_LIMIT` - Maximum number of tickets allowed per booking (default: 80)
 
 ## Configuration
 
@@ -118,16 +130,12 @@ Edit `src/main/resources/application.properties`:
 # Server Configuration
 server.port=8080
 
-# Gmail SMTP Configuration (for email notifications)
-spring.mail.host=smtp.gmail.com
-spring.mail.port=587
-spring.mail.username=your-email@gmail.com
-spring.mail.password=your-app-password
-spring.mail.properties.mail.smtp.auth=true
-spring.mail.properties.mail.smtp.starttls.enable=true
-
 # Admin Authentication (BCrypt hashed password)
 admin.password=$2a$12$CcQSWQEu9WnKpoQzJCHXpuk6uxRMCHt3ey4FqidGGtk1NjVgc2hs2
+
+# Booking & Reservation Configuration
+reservation.expiry.minutes=${RESERVATION_EXPIRY_MINUTES:10}
+ticket.max.limit=${TICKET_MAX_LIMIT:80}
 
 # Logging Configuration
 logging.level.root=INFO
@@ -254,18 +262,95 @@ Response:
 ]
 ```
 
-### Booking Management
-
-#### Create a Booking
+#### Approve a Booking
 ```http
-POST /api/bookings
+POST /api/approve-booking
+Content-Type: application/json
+Authorization: Bearer <jwt-token>
+
+{
+  "bookingId": "BOOK-123456"
+}
+
+Response:
+"BOOKING_APPROVED"
+```
+
+#### Reject a Booking
+```http
+POST /api/reject-booking
+Content-Type: application/json
+Authorization: Bearer <jwt-token>
+
+{
+  "bookingId": "BOOK-123456"
+}
+
+Response:
+"BOOKING_REJECTED"
+```
+
+### Reservation Management
+
+#### Create a Booking Reservation
+```http
+POST /api/bookings/reserve
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "ticketCount": 2,
+  "totalAmount": 150.00,
+  "paymentType": "PAID|FREE"
+}
+
+Response:
+{
+  "reservationId": "RES-123456",
+  "status": "RESERVED",
+  "totalAmount": 150.00,
+  "createdAt": "2024-05-09T10:30:00"
+}
+```
+
+#### Update a Booking Reservation
+```http
+PUT /api/bookings/reserve/{reservationId}
+Content-Type: application/json
+
+{
+  "name": "John Doe Updated",
+  "email": "john.updated@example.com",
+  "phone": "+1234567890",
+  "ticketCount": 2,
+  "totalAmount": 150.00,
+  "paymentType": "PAID|FREE"
+}
+
+Response:
+{
+  "reservationId": "RES-123456",
+  "status": "UPDATED",
+  "totalAmount": 150.00,
+  "updatedAt": "2024-05-09T11:30:00"
+}
+```
+
+#### Confirm a Booking Reservation
+```http
+POST /api/bookings/confirm/{reservationId}
 Content-Type: application/json
 Authorization: Bearer <jwt-token> (required for FREE payment type)
 
 {
-  "attendeeName": "John Doe",
+  "name": "John Doe",
   "email": "john@example.com",
-  "ticketQuantity": 2,
+  "phone": "+1234567890",
+  "utr": "transaction-id-123",
+  "ticketCount": 2,
+  "totalAmount": 150.00,
   "paymentType": "PAID|FREE"
 }
 
@@ -273,8 +358,8 @@ Response:
 {
   "bookingId": "BOOK-123456",
   "status": "CONFIRMED",
-  "totalPrice": 150.00,
-  "createdAt": "2024-05-09T10:30:00"
+  "totalAmount": 150.00,
+  "confirmedAt": "2024-05-09T10:30:00"
 }
 ```
 
@@ -444,9 +529,9 @@ Client Request
 ### Core Spring Boot Dependencies
 - `spring-boot-starter-web` - REST API support
 - `spring-boot-starter-cache` - Caching support
-- `spring-boot-starter-mail` - Email support
 - `spring-boot-starter-actuator` - Health monitoring
 - `spring-boot-devtools` - Development tools
+- ⚠️ `spring-boot-starter-mail` - Email support (currently disabled in pom.xml)
 
 ### Google Integration
 - `google-api-services-sheets:v4-rev20230815-2.0.0` - Google Sheets API
@@ -519,7 +604,9 @@ This project is compatible with:
 - Ensure public_id is unique
 
 **Issue: Email Sending Fails**
-- Verify Gmail app password is correct (not regular password)
+- ⚠️ Email notifications are currently disabled in `pom.xml` (spring-boot-starter-mail is commented out)
+- To enable: Uncomment the mail dependency in `pom.xml`
+- Then verify Gmail app password is correct (not regular password)
 - Enable "Less secure apps" or use OAuth2
 - Check Gmail SMTP settings in `application.properties`
 
@@ -546,7 +633,7 @@ For issues, questions, or feature requests, please open an issue in the reposito
 
 ---
 
-**Last Updated:** May 9, 2026  
+**Last Updated:** May 17, 2026  
 **Maintained by:** Development Team  
 **Java Version:** 21  
 **Spring Boot Version:** 4.0.6

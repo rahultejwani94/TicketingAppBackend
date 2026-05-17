@@ -6,8 +6,6 @@ import com.example.demo.model.TicketResponse;
 import com.example.demo.service.TicketCacheService;
 import com.example.demo.service.TicketService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -60,6 +58,34 @@ public class TicketController {
     public String rejectTicket(@RequestBody Map<String, String> request) throws IOException {
         ticketCacheService.rejectTicket(request.get("uuid"));
         return "REJECTED";
+    }
+
+    @PostMapping("/approve-booking")
+    public String approveBooking(
+            @RequestBody Map<String, String> request
+    ) throws Exception {
+
+        String bookingId = request.get("bookingId");
+
+        log.info("Approving booking: {}", bookingId);
+
+        ticketCacheService.approveBooking(bookingId);
+
+        return "BOOKING_APPROVED";
+    }
+
+    @PostMapping("/reject-booking")
+    public String rejectBooking(
+            @RequestBody Map<String, String> request
+    ) throws Exception {
+
+        String bookingId = request.get("bookingId");
+
+        log.info("Rejecting booking: {}", bookingId);
+
+        ticketCacheService.rejectBooking(bookingId);
+
+        return "BOOKING_REJECTED";
     }
 
     @GetMapping("/all-tickets")

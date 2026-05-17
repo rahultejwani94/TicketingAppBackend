@@ -11,6 +11,8 @@ public class TicketDTO {
     private String bookingId;
     private String uuid;
     private String name;
+    private String email;
+    private String phone;
     private String utr;
     private int rowIndex;
     private String status;

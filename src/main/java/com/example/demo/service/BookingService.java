@@ -1,7 +1,7 @@
 package com.example.demo.service;
 
-import com.cloudinary.Cloudinary;
-import com.example.demo.controller.TicketController;
+import com.example.demo.exceptions.BookingConflictException;
+import com.example.demo.exceptions.ReservationExpiredException;
 import com.example.demo.model.BookingRequest;
 import com.example.demo.model.NewTicket;
 import com.example.demo.utilities.UUIDUtil;
@@ -10,12 +10,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
-import com.cloudinary.Cloudinary;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,18 +38,108 @@ public class BookingService {
     @Autowired
     private CloudinaryService cloudinaryService;
 
+    @Value("${ticket.max.limit}")
+    private int maxTickets;
+
+    @Value("${reservation.expiry.minutes}")
+    private int reservationExpiryMinutes;
+
+    private final Object reservationLock = new Object();
+
     private static final Logger log = LoggerFactory.getLogger(BookingService.class);
 
     @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
-    public Map<String, Object> createBooking(BookingRequest req) throws Exception {
+    public Map<String, Object> reserveBooking(
+            BookingRequest req
+    ) throws Exception {
+        synchronized (reservationLock) {
+            log.info("Reserving booking for request: {}", req.getName());
 
-        log.info("Creating booking for request: {}", req.getName());
+            int activeTickets =
+                    googleSheetService.getActiveTicketCount(
+                            reservationExpiryMinutes
+                    );
 
-        String bookingId = UUIDUtil.generate();
+            log.info("Current active tickets: {}, Max allowed tickets: {}", activeTickets, maxTickets);
+
+            if (
+                    activeTickets + req.getTicketCount()
+                            > maxTickets
+            ) {
+
+                throw new BookingConflictException("HOUSEFULL");
+            }
+
+            String reservationId = UUIDUtil.generate();
+
+            List<List<Object>> rows = new ArrayList<>();
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm:ss");
+
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime expiresAt = now.plusMinutes(reservationExpiryMinutes);
+
+            String nowStr = now.format(formatter);
+            String expiresAtStr = expiresAt.format(formatter);
+
+            for (int i = 1; i <= req.getTicketCount(); i++) {
+
+                rows.add(new ArrayList<>(List.of(
+                        nowStr,
+                        req.getName(),
+                        req.getEmail(),
+                        req.getPhone(),
+                        "N/A",
+                        "N/A",
+                        "Reserved",
+                        reservationId,
+                        i,
+                        req.getTicketCount(),
+                        req.getTotalAmount(),
+                        req.getPaymentType(),
+                        "N/A",
+                        expiresAtStr
+                )));
+            }
+
+            googleSheetService.batchUpdateRows(rows);
+
+            Map<String, Object> response =
+                    new HashMap<>();
+
+            response.put("success", true);
+            response.put("reservationId", reservationId);
+            response.put("expiresAt", expiresAt.toString());
+            return response;
+        }
+    }
+
+    @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
+    public Map<String, Object> confirmReservation(String reservationId, BookingRequest req) throws Exception {
+
+        log.info("Creating booking for request: {} and reservation: {}", req.getName(), reservationId);
+
+        if (
+                googleSheetService.isReservationExpired(
+                        reservationId
+                )
+        ) {
+            throw new ReservationExpiredException("Reservation expired");
+        }
+
+        if (
+                googleSheetService.isAlreadyConfirmed(
+                        reservationId
+                )
+        ) {
+            throw new RuntimeException(
+                    "Booking already confirmed"
+            );
+        }
 
         List<NewTicket> tickets = new ArrayList<>();
         List<byte[]> qrImages = new ArrayList<>();
-        List<List<Object>> rows = new ArrayList<>();
+        List<String> uuids = new ArrayList<>();
 
         // -----------------------------
         // CREATE TICKET DATA
@@ -57,57 +148,20 @@ public class BookingService {
 
             String uuid = UUIDUtil.generate();
 
+            uuids.add(uuid);
+
             byte[] ticketImage = qrService.generateTicketImage(uuid);
 
             qrImages.add(ticketImage);
 
-            tickets.add(new NewTicket(uuid, i, bookingId));
-
-            List<Object> row;
-
-            if (req.getPaymentType().equalsIgnoreCase("FREE")) {
-
-                row = new ArrayList<>(List.of(
-                        LocalDateTime.now().toString(),
-                        req.getName(),
-                        req.getEmail(),
-                        req.getPhone(),
-                        req.getUtr(),
-                        uuid,
-                        "Valid",
-                        bookingId,
-                        i,
-                        req.getTicketCount(),
-                        0.0,
-                        req.getPaymentType()
-                ));
-
-            } else {
-
-                row = new ArrayList<>(List.of(
-                        LocalDateTime.now().toString(),
-                        req.getName(),
-                        req.getEmail(),
-                        req.getPhone(),
-                        req.getUtr(),
-                        uuid,
-                        "Pending",
-                        bookingId,
-                        i,
-                        req.getTicketCount(),
-                        req.getTotalAmount(),
-                        req.getPaymentType()
-                ));
-            }
-
-            rows.add(row);
+            tickets.add(new NewTicket(uuid, i, reservationId));
         }
 
         // -----------------------------
         // GENERATE PDF
         // -----------------------------
         byte[] pdfBytes = pdfService.generateTicketPdf(
-                bookingId,
+                reservationId,
                 req.getName(),
                 qrImages
         );
@@ -115,7 +169,7 @@ public class BookingService {
         // -----------------------------
         // CREATE TEMP FILE
         // -----------------------------
-        String pdfFileName = "The_NoteBook_Concert_Ticket_" + bookingId + ".pdf";
+        String pdfFileName = "The_NoteBook_Concert_Ticket_" + reservationId + ".pdf";
         File tempFile = File.createTempFile(pdfFileName, ".pdf");
 
         try (FileOutputStream fos = new FileOutputStream(tempFile)) {
@@ -133,23 +187,23 @@ public class BookingService {
         tempFile.delete();
 
         // -----------------------------
-        // ADD PDF URL INTO EACH ROW
-        // -----------------------------
-        for (List<Object> row : rows) {
-            row.add(pdfUrl);
-        }
-
-        // -----------------------------
         // SAVE TO GOOGLE SHEETS
         // -----------------------------
-        googleSheetService.batchUpdateRows(rows);
+        googleSheetService.confirmReservation(
+                reservationId,
+                uuids,
+                req.getUtr(),
+                pdfUrl,
+                req.getPaymentType(),
+                req.getTotalAmount()
+        );
 
         // -----------------------------
         // RESPONSE
         // -----------------------------
         Map<String, Object> response = new HashMap<>();
 
-        response.put("bookingId", bookingId);
+        response.put("bookingId", reservationId);
         response.put("tickets", tickets);
         response.put("pdfUrl", pdfUrl);
 
@@ -176,6 +230,27 @@ public class BookingService {
         try (InputStream in = url.openStream()) {
             return in.readAllBytes();
         }
+    }
+
+    @CacheEvict(value = {"pendingTickets", "allTickets"}, allEntries = true)
+    public Map<String, Object> updateReservation(
+            String reservationId,
+            BookingRequest req
+    ) throws Exception {
+
+        googleSheetService.updateReservation(
+                reservationId,
+                req.getName(),
+                req.getEmail(),
+                req.getPhone()
+        );
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("success", true);
+        response.put("reservationId", reservationId);
+
+        return response;
     }
 }
 
