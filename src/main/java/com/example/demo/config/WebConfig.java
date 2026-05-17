@@ -14,8 +14,14 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("*")
-                        .allowedMethods("*");
+                        .allowedOrigins(
+                                "https://thenotebookconcert.in",
+                                "https://www.thenotebookconcert.in",
+                                "http://localhost:5173",
+                                "http://192.168.1.4:5173"
+                        )
+                        .allowedMethods("GET", "POST", "PUT", "DELETE")
+                        .allowedHeaders("*");
             }
         };
     }

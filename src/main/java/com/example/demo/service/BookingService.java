@@ -1,6 +1,7 @@
 package com.example.demo.service;
 
 import com.example.demo.exceptions.BookingConflictException;
+import com.example.demo.exceptions.EmailSendException;
 import com.example.demo.exceptions.ReservationExpiredException;
 import com.example.demo.model.BookingRequest;
 import com.example.demo.model.NewTicket;
@@ -38,6 +39,9 @@ public class BookingService {
 
     @Autowired
     private CloudinaryService cloudinaryService;
+
+    @Autowired
+    private EmailService emailService;
 
     @Value("${ticket.max.limit}")
     private int maxTickets;
@@ -120,22 +124,12 @@ public class BookingService {
 
         log.info("Creating booking for request: {} and reservation: {}", req.getName(), reservationId);
 
-        if (
-                googleSheetService.isReservationExpired(
-                        reservationId
-                )
-        ) {
+        if (googleSheetService.isReservationExpired(reservationId)) {
             throw new ReservationExpiredException("Reservation expired");
         }
 
-        if (
-                googleSheetService.isAlreadyConfirmed(
-                        reservationId
-                )
-        ) {
-            throw new RuntimeException(
-                    "Booking already confirmed"
-            );
+        if (googleSheetService.isAlreadyConfirmed(reservationId)) {
+            throw new RuntimeException("Booking already confirmed");
         }
 
         List<NewTicket> tickets = new ArrayList<>();
@@ -146,15 +140,10 @@ public class BookingService {
         // CREATE TICKET DATA
         // -----------------------------
         for (int i = 1; i <= req.getTicketCount(); i++) {
-
             String uuid = UUIDUtil.generate();
-
             uuids.add(uuid);
-
             byte[] ticketImage = qrService.generateTicketImage(uuid);
-
             qrImages.add(ticketImage);
-
             tickets.add(new NewTicket(uuid, i, reservationId));
         }
 
@@ -167,6 +156,22 @@ public class BookingService {
                 qrImages
         );
 
+        // send email
+        boolean emailSent = false;
+        try {
+            emailService.sendTicketEmail(
+                    req.getEmail(),
+                    req.getName(),
+                    reservationId,
+                    req.getTicketCount(),
+                    req.getTotalAmount(),
+                    pdfBytes
+            );
+            emailSent = true;
+        } catch (Exception e) {
+            log.warn("Email failed for booking {}: {}", reservationId, e.getMessage());
+        }
+
         // -----------------------------
         // CREATE TEMP FILE
         // -----------------------------
@@ -178,7 +183,7 @@ public class BookingService {
         }
 
         // -----------------------------
-        // UPLOAD PDF
+        // UPLOAD PDF TO CLOUDINARY
         // -----------------------------
         String pdfUrl = cloudinaryService.uploadPdf(tempFile, pdfFileName);
 
@@ -203,10 +208,10 @@ public class BookingService {
         // RESPONSE
         // -----------------------------
         Map<String, Object> response = new HashMap<>();
-
         response.put("bookingId", reservationId);
         response.put("tickets", tickets);
         response.put("pdfUrl", pdfUrl);
+        response.put("emailSent", emailSent);
 
         if (req.getPaymentType().equalsIgnoreCase("FREE")) {
             response.put("status", "Valid");
